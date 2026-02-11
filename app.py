@@ -172,6 +172,7 @@ class MesopicModel:
         term_p = Lpa / safe_yp
         term_s = Lsa / 0.3333
         denom = term_p + term_s
+        denom = np.where(denom == 0, 1e-6, denom)
         xm = (Lpa * xp_img / safe_yp + Lsa) / denom
         ym = (Lpa + Lsa) / denom
         return xm, ym, Lmes
@@ -365,4 +366,5 @@ else:
             <div class="metric-value">L = {Lmes:.2f}</div>
             <div class="metric-sub">x:{xm:.3f} y:{ym:.3f}</div>
         </div>
+
         """, unsafe_allow_html=True)
