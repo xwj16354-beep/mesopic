@@ -118,6 +118,10 @@ class MesopicModel:
 
     def calculate(self):
         m, Lp, Ls, xp, yp = self.m, self.Lp, self.Ls, self.xp, self.yp
+        if Lp >= 5.0:
+            m = 1.0  # 强制进入纯明视觉
+        elif Ls <= 0.005:
+            m = 0.0  # 强制进入纯暗视觉
         safe_yp = max(yp, 0.0001)
         ratio_K = 683.0 / 1699.0
         
@@ -165,14 +169,21 @@ class MesopicModel:
     def calculate_image(self, m, Lp_img, Ls_img, xp_img, yp_img):
         safe_yp = np.maximum(yp_img, 0.0001)
         ratio_K = 683.0 / 1699.0
-        num_L = m * Lp_img + (1 - m) * Ls_img * ratio_K
-        den_L = m + (1 - m) * ratio_K
+        # 创建一个与 Lp_img 维度相同的 m 值矩阵
+        m_map = np.full_like(Lp_img, m)
+        # 根据每个像素的真实亮度进行覆盖
+        m_map = np.where(Lp_img >= 5.0, 1.0, m_map)
+        m_map = np.where(Ls_img <= 0.005, 0.0, m_map)
+        num_L = m_map * Lp_img + (1 - m_map) * Ls_img * ratio_K
+        den_L = m_map + (1 - m_map) * ratio_K
         Lmes = num_L / den_L
-        Lpa, Lsa = Lmes * m, Lmes * (1 - m)
+        
+        Lpa, Lsa = Lmes * m_map, Lmes * (1 - m_map)
         term_p = Lpa / safe_yp
         term_s = Lsa / 0.3333
         denom = term_p + term_s
         denom = np.where(denom == 0, 1e-6, denom)
+        
         xm = (Lpa * xp_img / safe_yp + Lsa) / denom
         ym = (Lpa + Lsa) / denom
         return xm, ym, Lmes
@@ -256,7 +267,10 @@ with st.sidebar:
     m = st.slider("Adaptation (m)", 0.0, 1.0, 1.0, 0.01)
     
     st.divider()
-    
+    if Lp >= 5.0:
+        st.info("💡 Lp ≥ 5.0, 强制为明视觉 (m=1.0)")
+    elif Ls <= 0.005:
+        st.info("🌑 Ls ≤ 0.005, 强制为暗视觉 (m=0.0)")
     # 2. 实时计算
     model = MesopicModel(xp, yp, Lp, Ls, m)
     xm, ym, Lmes = model.calculate()
@@ -368,3 +382,4 @@ else:
         </div>
 
         """, unsafe_allow_html=True)
+
